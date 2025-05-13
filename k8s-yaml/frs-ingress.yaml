@@ -1,0 +1,73 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frssvr
+  namespace: ceph-csi
+  labels: 
+    app: frssvr
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: frssvr
+  template:
+    metadata:
+      labels:
+        app: frssvr
+    spec:
+      containers:
+      - name: frssvr
+        image: dockhub.ghtchina.com:6060/ttx/frssvr:v0.0.9
+        env:
+        - name: NODE_IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.hostIP
+        imagePullPolicy: IfNotPresent
+        ports:
+            - containerPort: 8183
+        volumeMounts:
+          - name: frspvc
+            mountPath: /app/run/frs/dat/
+      volumes:
+        - name: frspvc
+          persistentVolumeClaim:
+            claimName: frs-rbd-pvc
+            readOnly: false
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: frs-service
+  namespace: ceph-csi
+spec:
+  #type: NodePort
+  selector:
+    app: frssvr
+  ports:
+  - protocol: TCP
+    port: 80
+    #nodePort: 38183
+    targetPort: 8183
+
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: ingress-frs
+  namespace: ceph-csi
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: www.gccs.com 
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: frs-service
+            port:
+              number: 80
+

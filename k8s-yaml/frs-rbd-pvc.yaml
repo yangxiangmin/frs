@@ -1,0 +1,17 @@
+# cat csi-rbd-pvc.yaml
+--- 
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: frs-rbd-pvc
+  namespace: ceph-csi
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+  storageClassName: "frs-rbd-sc"
+ 
+# kubectl apply -f pvc.yaml
+# kubectl get pvc frs-rbd-pvc
