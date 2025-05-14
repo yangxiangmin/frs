@@ -231,9 +231,12 @@ pipeline {
                         //dir("${WORKSPACE}/${PROJECT_NAME}/dockfile") {
                         dir("${WORKSPACE}/dockfile") {
 
-                            // 将编译产物考到dockerfile，要根据实际情况，包括make编译输出目录以及Dockerfile里面的具体定义
-                            cp ${WORKSPACE}/src/frssvr .
-                            cp -r ${WORKSPACE}/src/lib64 .
+                            // 将编译产物考到dockerfile，要根据实际情况，包括make编译输出目录以及Dockerfile里面的具体定义 yangxmflag
+                            cp ${WORKSPACE}/src/frssvr ./
+                            cp -r ${WORKSPACE}/src/lib64 ./
+
+                            // 验证文件是否存在 yangxmflag
+                            sh "ls -l frssvr lib64"
 
                             // 构建Docker镜像
                             sh "docker build -t ${APP_IMAGE_URL}:${tag} ."
