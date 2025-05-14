@@ -9,12 +9,14 @@ CFLAGS = -g -Wall -Wextra -Wl,-rpath=../libs/ \
 
 INCLUDES = -I./ \
 	   -I/usr/local/include \
-           -I/home/tantingxi/awssdk/include
+	   -I./include
+#           -I/home/tantingxi/awssdk/include
 
 LDFLAGS = -L./ \
           -L/usr/lib/x86_64-linux-gnu \
           -L/usr/local/lib \
-          -L/home/tantingxi/awssdk/lib64
+          -L./lib64
+#          -L./home/tantingxi/awssdk/lib64
           
 
 ifeq ($(uname -m), x86_64) #aarch64
