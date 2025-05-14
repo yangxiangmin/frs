@@ -109,11 +109,16 @@ pipeline {
                             set -xe
                             
                             # 使用docker run直接运行容器执行编译
+                            # 如果编译输出不在src目录下，则还需要增加相关目录情况挂载，yangxmflag
                             docker run --rm \
                                 -v ${WORKSPACE}/src:/workspace/src \
                                 -v ${WORKSPACE}/.cache:/root/.cache \
                                 -w /workspace/src \
                                 ${BASE_IMAGE} /bin/bash -c '
+
+                                    # 打印初始工作目录
+                                    echo "当前工作目录: \$(pwd)"
+
                                     # 1. 可靠的系统检测和依赖安装
                                     install_deps() {
                                         # 检测包管理器
@@ -159,6 +164,9 @@ pipeline {
                                     ln -sf libs2n.so.1.0.0 libs2n.so.1
                                     ln -sf libs2n.so.1 libs2n.so
                                     cd ..
+
+                                    # 打印编译前工作目录
+                                    echo "编译前工作目录: \$(pwd)"
 
                                     # 3. 编译和测试（将错误输出到文件）
                                     echo "===== 开始编译 ====="
@@ -212,13 +220,21 @@ pipeline {
                 script {
                     try {
                         // 获取当前时间戳或Git提交ID作为标签
-                        def tag = sh(script: "git rev-parse --short HEAD", returnStdout: true).trim()
+                        // def tag = sh(script: "git rev-parse --short HEAD", returnStdout: true).trim()
+
+                        // 直接使用预定义的 BUILD_NUMBER 环境变量
+                        def tag = env.BUILD_NUMBER
                         env.IMAGE_TAG = tag
                         
                         echo "构建应用镜像: ${APP_IMAGE_URL}:${tag}"
                         
                         //dir("${WORKSPACE}/${PROJECT_NAME}/dockfile") {
                         dir("${WORKSPACE}/dockfile") {
+
+                            // 将编译产物考到dockerfile，要根据实际情况，包括make编译输出目录以及Dockerfile里面的具体定义
+                            cp ${WORKSPACE}/src/frssvr .
+                            cp -r ${WORKSPACE}/src/lib64 .
+
                             // 构建Docker镜像
                             sh "docker build -t ${APP_IMAGE_URL}:${tag} ."
                         }

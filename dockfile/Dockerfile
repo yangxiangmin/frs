@@ -18,8 +18,8 @@ WORKDIR /app/run/frs/bin
 # COPY ./bin/frssvr /app/run/frs/bin
 # COPY ./libs/lib*.* /app/run/frs/libs/
 # 复制编译产物（来自 Jenkins 工作空间）
-COPY src/frssvr /app/run/frs/bin/
-COPY src/lib64/* /app/run/frs/libs/
+COPY ./frssvr /app/run/frs/bin/
+COPY ./lib64/* /app/run/frs/libs/
 
 
 # starting to run  FRS
