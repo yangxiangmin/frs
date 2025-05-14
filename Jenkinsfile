@@ -140,7 +140,26 @@ pipeline {
                                     echo "===== 环境验证 ====="
                                     g++ --version || { echo "[ERROR] g++未安装"; exit 1; }
                                     cmake --version || cmake3 --version || { echo "[ERROR] cmake未安装"; exit 1; }
-                                    
+
+                                    echo "===== 创建软连接 ====="
+                                    cd lib64
+                                    ln -sf libaws-c-auth.so.1.0.0 libaws-c-auth.so
+                                    ln -sf libaws-c-cal.so.1.0.0 libaws-c-cal.so
+                                    ln -sf libaws-c-common.so.1.0.0 libaws-c-common.so.1
+                                    ln -sf libaws-c-common.so.1 libaws-c-common.so
+                                    ln -sf libaws-c-compression.so.1.0.0 libaws-c-compression.so
+                                    ln -sf libaws-c-event-stream.so.1.0.0 libaws-c-event-stream.so
+                                    ln -sf libaws-checksums.so.1.0.0 libaws-checksums.so
+                                    ln -sf libaws-c-http.so.1.0.0 libaws-c-http.so
+                                    ln -sf libaws-c-io.so.1.0.0 libaws-c-io.so
+                                    ln -sf libaws-c-mqtt.so.1.0.0 libaws-c-mqtt.so
+                                    ln -sf libaws-c-s3.so.1.0.0 libaws-c-s3.so.0unstable
+                                    ln -sf libaws-c-s3.so.0unstable libaws-c-s3.so
+                                    ln -sf libaws-c-sdkutils.so.1.0.0 libaws-c-sdkutils.so
+                                    ln -sf libs2n.so.1.0.0 libs2n.so.1
+                                    ln -sf libs2n.so.1 libs2n.so
+                                    cd ..
+
                                     # 3. 编译和测试（将错误输出到文件）
                                     echo "===== 开始编译 ====="
                                     make clean

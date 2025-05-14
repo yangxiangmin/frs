@@ -15,8 +15,11 @@ RUN chmod 777 /app/run/frs/
 WORKDIR /app/run/frs/bin
 
 # libs and app 
-COPY ./bin/frssvr /app/run/frs/bin
-COPY ./libs/lib*.* /app/run/frs/libs/
+# COPY ./bin/frssvr /app/run/frs/bin
+# COPY ./libs/lib*.* /app/run/frs/libs/
+# 复制编译产物（来自 Jenkins 工作空间）
+COPY src/frssvr /app/run/frs/bin/
+COPY src/lib64/* /app/run/frs/libs/
 
 
 # starting to run  FRS
