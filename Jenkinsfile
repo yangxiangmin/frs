@@ -37,6 +37,7 @@ pipeline {
             }
         }
 
+/*
         stage('svn方式获取代码') {
             steps {
                 script {
@@ -65,6 +66,8 @@ pipeline {
                 }
             }
         }
+*/
+
 /*
         stage('svn方式获取代码') {
             steps {
@@ -83,7 +86,7 @@ pipeline {
             }
         }
 
-
+*/
         stage('git方式获取代码') {
             steps {
                 script {
@@ -98,7 +101,7 @@ pipeline {
                 }
             }
         }
-*/        
+
         stage('解析Dockerfile') {
             steps {
                 echo "当前处理节点: ${env.NODE_NAME}"
