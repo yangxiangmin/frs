@@ -3,13 +3,15 @@ pipeline {
     
     environment {
         // 基础配置
-        PROJECT_NAME = "frs"
+        //PROJECT_NAME = "frs"
+        PROJECT_NAME = env.JOB_NAME.split('/').last()                                   // 将任务名按 / 分割，取最后一部分作为项目名
         GITHUB_NAMESPACE = "yangxiangmin"
         DOCKER_REGISTRY = "dockhub.ghtchina.com:6060"
         DOCKER_NAMESPACE = "ims-cloud"
+        SOURCE_CODE_URL_SVN = "https://svn.harris.guangzhou.gd.cn/svn/IMS/IMSas/econfig" // SVN源代码URL通过静态设置设置
         
         // 动态计算的变量
-        SOURCE_CODE_URL = "https://github.com/${GITHUB_NAMESPACE}/${PROJECT_NAME}.git"
+        SOURCE_CODE_URL = "https://github.com/${GITHUB_NAMESPACE}/${PROJECT_NAME}.git"  // github源代码URL通过动态方式设置
         APP_IMAGE_URL = "${DOCKER_REGISTRY}/${DOCKER_NAMESPACE}/${PROJECT_NAME}"
         BASE_IMAGE = ""
         BUILD_DIR = "${WORKSPACE}/${PROJECT_NAME}"
@@ -34,8 +36,27 @@ pipeline {
                 }
             }
         }
-        
-        stage('获取代码') {
+
+/*
+        stage('svn方式获取代码') {
+            steps {
+                checkout([
+                    $class: 'SubversionSCM',
+                    locations: [[
+                        // 使用双引号确保变量解析
+                        remote: "${env.SOURCE_CODE_URL_SVN}",
+                        // 直接使用凭证ID（需在Jenkins后台配置）
+                        credentialsId: 'svn-credential',
+                        depthOption: 'infinity',
+                        ignoreExternalsOption: true
+                    ]],
+                    workspaceUpdater: [$class: 'UpdateWithCleanUpdater']
+                ])
+            }
+        }
+*/
+
+        stage('git方式获取代码') {
             steps {
                 script {
                     echo "当前处理节点: ${env.NODE_NAME}"
