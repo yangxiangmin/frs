@@ -19,6 +19,7 @@ pipeline {
         stage('初始化') {
             steps {
                 script {
+                    echo "当前处理节点: ${env.NODE_NAME}"
                     echo "工作空间路径: ${env.WORKSPACE}"
                     echo "初始化项目: ${PROJECT_NAME}"
                     echo "源代码URL: ${SOURCE_CODE_URL}"
@@ -30,6 +31,7 @@ pipeline {
         stage('获取代码') {
             steps {
                 script {
+                    echo "当前处理节点: ${env.NODE_NAME}"
                     try {
                         echo "从 ${SOURCE_CODE_URL} 克隆代码..."
                         git url: SOURCE_CODE_URL, branch: 'main', credentialsId: 'github-credentials'
@@ -43,6 +45,7 @@ pipeline {
         
         stage('解析Dockerfile') {
             steps {
+                echo "当前处理节点: ${env.NODE_NAME}"
                 script {
                     try {
                         //def dockerfilePath = "${WORKSPACE}/${PROJECT_NAME}/dockfile/Dockerfile"
@@ -80,6 +83,7 @@ pipeline {
 
         stage('拉取基础镜像') {
             steps {
+                echo "当前处理节点: ${env.NODE_NAME}"
                 script {
                     try {
                         echo "拉取基础镜像: ${BASE_IMAGE}"
@@ -97,6 +101,7 @@ pipeline {
 
         stage('编译和测试') {
             steps {
+                echo "当前处理节点: ${env.NODE_NAME}"
                 script {
                     try {
                         def buildDependencies = "gcc gcc-c++ make cmake3 jsoncpp-devel openssl-devel git"
@@ -112,7 +117,7 @@ pipeline {
                             docker run --rm \
                                 -v ${WORKSPACE}:/workspace \
                                 -v ${WORKSPACE}/.cache:/root/.cache \
-                                -w /workspace
+                                -w /workspace \
                                 ${BASE_IMAGE} /bin/bash -c '
                                     # 打印初始工作目录
                                     echo "当前工作目录: \$(pwd)"
@@ -145,6 +150,7 @@ pipeline {
                                     cmake --version || cmake3 --version || { echo "[ERROR] cmake未安装"; exit 1; }
 
                                     # 3. 创建软连接（注意路径调整）
+                                    echo "===== 创建软连接 ====="
                                     cd lib64
                                     ln -sf libaws-c-auth.so.1.0.0 libaws-c-auth.so
                                     ln -sf libaws-c-auth.so.1.0.0 libaws-c-auth.so
@@ -163,6 +169,9 @@ pipeline {
                                     ln -sf libs2n.so.1.0.0 libs2n.so.1
                                     ln -sf libs2n.so.1 libs2n.so
                                     cd ..
+
+                                    echo "===== 当前动态库 ====="
+                                    ls -al
 
                                     # 4. 编译并指定输出目录
                                     echo "===== 开始编译 ====="
@@ -191,10 +200,8 @@ pipeline {
                         // 检查编译结果（原有逻辑保持不变）
                         if (compileResult != 0) {
                             // 获取容器日志（如果需要）
-                            def containerLog = sh(
-                                script: "docker ps -lq | xargs docker logs 2>&1 | tail -n 50 || true",
-                                returnStdout: true
-                            )
+                            def containerLog = readFile("builderrlog/build_errors.log")
+
                             error "编译测试失败，返回码: ${compileResult}\n容器日志片段:\n${containerLog}"
                         }
                         
@@ -213,6 +220,7 @@ pipeline {
 
         stage('构建应用镜像') {
             steps {
+                echo "当前处理节点: ${env.NODE_NAME}"
                 script {
                     try {
                         def tag = env.BUILD_NUMBER
@@ -401,6 +409,7 @@ pipeline {
 */        
         stage('推送镜像') {
             steps {
+                echo "当前处理节点: ${env.NODE_NAME}"
                 script {
                     try {
                         echo "登录Docker仓库..."
@@ -458,7 +467,7 @@ pipeline {
     post {
         always {
             echo "清理工作空间..."
-            sh "rm -f ${WORKSPACE}/src/*.log || true"
+            sh "rm -f ${WORKSPACE}/builderrlog"
             cleanWs()
         }
         success {
