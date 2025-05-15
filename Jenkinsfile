@@ -37,6 +37,34 @@ pipeline {
             }
         }
 
+        stage('svn方式获取代码') {
+            steps {
+                script {
+                    // 弹出输入框获取凭据
+                    def svnCredentials = input(
+                        id: 'svnAuth',
+                        message: '请输入SVN账号密码',
+                        parameters: [
+                            string(name: 'username', description: 'SVN账号'),
+                            password(name: 'password', description: 'SVN密码')
+                        ]
+                    )
+
+                    checkout([
+                        $class: 'SubversionSCM',
+                        locations: [[
+                            remote: "${env.SOURCE_CODE_URL_SVN}",
+                            credentialsId: '',
+                            username: "${svnCredentials.username}",
+                            password: "${svnCredentials.password}",
+                            depthOption: 'infinity',
+                            ignoreExternalsOption: true
+                        ]],
+                        workspaceUpdater: [$class: 'UpdateWithCleanUpdater']
+                    ])
+                }
+            }
+        }
 /*
         stage('svn方式获取代码') {
             steps {
@@ -54,7 +82,7 @@ pipeline {
                 ])
             }
         }
-*/
+
 
         stage('git方式获取代码') {
             steps {
@@ -70,7 +98,7 @@ pipeline {
                 }
             }
         }
-        
+*/        
         stage('解析Dockerfile') {
             steps {
                 echo "当前处理节点: ${env.NODE_NAME}"
