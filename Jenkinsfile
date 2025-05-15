@@ -199,17 +199,14 @@ pipeline {
                         
                         // 检查编译结果（原有逻辑保持不变）
                         if (compileResult != 0) {
-                            // 获取容器日志（如果需要）
-                            def containerLog = readFile("builderrlog/build_errors.log")
-
-                            error "编译测试失败，返回码: ${compileResult}\n容器日志片段:\n${containerLog}"
+                            error "容器内编译测试失败，返回码: ${compileResult}"
+                        } else {
+                            echo "容器内编译测试完成"
                         }
-                        
-                        echo "容器内编译测试完成"
                     } catch (Exception e) {
                         // 捕获异常时调整日志路径到buildout目录
                         def errorLog = sh(
-                            script: "cat ${WORKSPACE}/buildout/build_errors.log ${WORKSPACE}/buildout/test_errors.log 2>/dev/null || true",
+                            script: "cat ${WORKSPACE}/builderrlog/build_errors.log ${WORKSPACE}/builderrlog/test_errors.log 2>/dev/null || true",
                             returnStdout: true
                         )
                         error "编译测试阶段失败:\n${e.getMessage()}\n错误日志:\n${errorLog}"
@@ -467,7 +464,7 @@ pipeline {
     post {
         always {
             echo "清理工作空间..."
-            sh "rm -f ${WORKSPACE}/builderrlog"
+            sh "rm -rf ${WORKSPACE}/builderrlog"
             cleanWs()
         }
         success {
