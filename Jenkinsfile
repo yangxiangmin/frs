@@ -29,6 +29,8 @@ pipeline {
                     echo "初始化项目: ${PROJECT_NAME}"
                     echo "源代码URL: ${SOURCE_CODE_URL}"
                     echo "应用镜像URL: ${APP_IMAGE_URL}"
+                    echo "应用编译输出目录: ${BUILD_OUT_DIR}"
+
                 }
             }
         }
@@ -40,9 +42,9 @@ pipeline {
                     try {
                         echo "从 ${SOURCE_CODE_URL} 克隆代码..."
                         git url: SOURCE_CODE_URL, branch: 'main', credentialsId: 'github-credentials'
-                        echo "代码克隆成功"
+                        echo "✅ 代码克隆成功"
                     } catch (Exception e) {
-                        error "克隆代码失败: ${e.getMessage()}"
+                        error "❌ 代码克隆失败: ${e.getMessage()}"
                     }
                 }
             }
@@ -61,7 +63,7 @@ pipeline {
                         if (!fileExists(dockerfilePath)) {
                             // 打印目录内容帮助调试
                             sh "ls -la ${WORKSPACE}/dockfile/ || true"
-                            error "Dockerfile 不存在于路径: ${dockerfilePath}\n当前目录内容如上所示"
+                            error "❌ Dockerfile 不存在于路径: ${dockerfilePath}\n当前目录内容如上所示"
                         }
 
                         // 读取Dockerfile内容
@@ -70,17 +72,17 @@ pipeline {
                         // 提取FROM指令
                         def fromLine = dockerfileContent.readLines().find { it.startsWith('FROM ') }
                         if (!fromLine) {
-                            error "Dockerfile中没有找到FROM指令"
+                            error "❌ Dockerfile中没有找到FROM指令"
                         }
                         
                         // 获取基础镜像
                         BASE_IMAGE = fromLine.substring(5).trim()
-                        echo "基础镜像: ${BASE_IMAGE}"
+                        echo "✅ 获取基础镜像要求成功: ${BASE_IMAGE}"
                         
                         // 保存到环境变量供后续阶段使用
                         env.BASE_IMAGE = BASE_IMAGE
                     } catch (Exception e) {
-                        error "解析Dockerfile失败: ${e.getMessage()}"
+                        error "❌ Dockerfile解析失败: ${e.getMessage()}"
                     }
                 }
             }
@@ -95,9 +97,9 @@ pipeline {
                         sh "docker pull ${BASE_IMAGE}"
                         // 简单验证镜像可用性
                         sh "docker inspect ${BASE_IMAGE} >/dev/null"
-                        echo "基础镜像拉取成功"
+                        echo "✅ 基础镜像拉取成功"
                     } catch (Exception e) {
-                        error "拉取基础镜像失败: ${e.getMessage()}"
+                        error "❌ 基础镜像拉取失败: ${e.getMessage()}"
                     }
                 }
             }
@@ -142,7 +144,7 @@ pipeline {
                                     }
                                     
                                     # 安装依赖（参数：RHEL依赖包 Debian依赖包）
-                                    # install_deps "${buildDependencies}" "build-essential cmake libjsoncpp-dev libssl-dev"
+                                    install_deps
                                     
                                     # 2. 验证环境
                                     echo "===== 环境验证 ====="
@@ -200,17 +202,17 @@ pipeline {
                         
                         // 检查编译结果（原有逻辑保持不变）
                         if (compileResult != 0) {
-                            error "容器内编译测试失败，返回码: ${compileResult}"
+                            error "❌ 容器内编译测试失败，返回码: ${compileResult}"
                         }
 
-                        echo "容器内编译测试完成"
+                        echo "✅ 容器内编译测试完成"
                     } catch (Exception e) {
                         // 捕获异常时调整日志路径到buildout目录
                         def errorLog = sh(
                             script: "cat ${WORKSPACE}/${env.BUILD_ERR_DIR}/build_errors.log ${WORKSPACE}/${env.BUILD_ERR_DIR}/test_errors.log 2>/dev/null || true",
                             returnStdout: true
                         )
-                        error "编译测试阶段失败:\n${e.getMessage()}\n错误日志:\n${errorLog}"
+                        error "❌ 编译测试阶段失败:\n${e.getMessage()}\n错误日志:\n${errorLog}"
                     }
                 }
             }
@@ -236,15 +238,15 @@ pipeline {
                             sh "docker build -t ${APP_IMAGE_URL}:${tag} ."
                         }
                         
-                        echo "应用镜像构建成功"
+                        echo "✅ 应用镜像构建成功"
                     } catch (Exception e) {
-                        error "构建应用镜像失败: ${e.getMessage()}"
+                        error "❌ 应用镜像构建失败: ${e.getMessage()}"
                     }
                 }
             }
         }
 
-        stage('推送镜像') {
+        stage('上传应用镜像') {
             steps {
                 echo "当前处理节点: ${env.NODE_NAME}"
                 script {
@@ -256,16 +258,16 @@ pipeline {
                             sh "echo ${DOCKER_PASS} | docker login -u ${DOCKER_USER} --password-stdin ${DOCKER_REGISTRY}"
                         }
                         
-                        echo "推送镜像 ${APP_IMAGE_URL}:${IMAGE_TAG} 到仓库..."
+                        echo "上传应用镜像 ${APP_IMAGE_URL}:${IMAGE_TAG} 到仓库..."
                         sh "docker push ${APP_IMAGE_URL}:${IMAGE_TAG}"
                         
                         // 同时标记为latest并推送
                         sh "docker tag ${APP_IMAGE_URL}:${IMAGE_TAG} ${APP_IMAGE_URL}:latest"
                         sh "docker push ${APP_IMAGE_URL}:latest"
                         
-                        echo "镜像推送成功"
+                        echo "✅ 应用镜像上传成功"
                     } catch (Exception e) {
-                        error "推送镜像失败: ${e.getMessage()}"
+                        error "❌ 应用镜像上传失败: ${e.getMessage()}"
                     } finally {
                         // 登出Docker仓库
                         sh "docker logout ${DOCKER_REGISTRY}"
@@ -291,9 +293,9 @@ pipeline {
                             // 应用k8s配置 (假设有kubectl配置)
                             sh "kubectl apply -f ."
                         }
-                        echo "Kubernetes部署完成"
+                        echo "✅ Kubernetes部署完成"
                     } catch (Exception e) {
-                        error "Kubernetes部署失败: ${e.getMessage()}"
+                        error "❌ Kubernetes部署失败: ${e.getMessage()}"
                     }
                 }
             }
@@ -308,11 +310,11 @@ pipeline {
             cleanWs()
         }
         success {
-            echo "流水线执行成功"
+            echo "✅ 流水线执行成功"
             // 可以添加通知逻辑
         }
         failure {
-            echo "流水线执行失败"
+            echo "❌ 流水线执行失败"
             // 可以添加失败通知逻辑
         }
     }
