@@ -171,7 +171,7 @@ pipeline {
                                     cd ..
 
                                     echo "===== 当前动态库 ====="
-                                    ls -al
+                                    ls -al lib64
 
                                     # 4. 编译并指定输出目录
                                     echo "===== 开始编译 ====="
@@ -225,10 +225,10 @@ pipeline {
                         echo "构建应用镜像: ${APP_IMAGE_URL}:${tag}"
                         
                         dir("${WORKSPACE}/dockfile") {
-                            // 从 buildout 目录复制编译产物
+                            // 将编译产物拷贝到dockerfile目录下，使Dockerfile和应用在同一目录dockfile下
                             sh """
                                 cp ${WORKSPACE}/buildout/frssvr ./
-                                cp -r ${WORKSPACE}/buildout/lib64 ./
+                                cp -r ${WORKSPACE}/lib64 ./
                             """
                             
                             // 验证文件存在
