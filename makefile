@@ -28,7 +28,7 @@ INCLUDES += -Ijsoncpp_aarch64/include
 LDFLAGS  += -Ljsoncpp_aarch64/libs
 endif
 
-LIBS := -lpthread -lrt -ljsoncpp -laws-cpp-sdk-s3 -aws-cpp-sdk-core
+LIBS := -lpthread -lrt -ljsoncpp -laws-cpp-sdk-s3 -laws-cpp-sdk-core
 
 #---------------------------------------------
 # 源文件和目标文件定义

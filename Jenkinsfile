@@ -13,6 +13,11 @@ pipeline {
         APP_IMAGE_URL = "${DOCKER_REGISTRY}/${DOCKER_NAMESPACE}/${PROJECT_NAME}"
         BASE_IMAGE = ""
         BUILD_DIR = "${WORKSPACE}/${PROJECT_NAME}"
+
+        BUILD_DEPENDENCIES = "gcc gcc-c++ make cmake3 jsoncpp-devel openssl-devel git"  // 自定义RHEL/CentOS依赖，根据实际基础镜像和应用编译环境作相应修改
+        DEBIAN_DEPENDENCIES = "build-essential cmake libjsoncpp-dev libssl-dev"         // 自定义Debian/Ubuntu依赖，根据实际基础镜像和应用编译环境作相应修改
+        BUILD_OUT_DIR = "buildout"                                                      // 自定义编译输出目录名称，根据Makefile实际编译输出目录作相应修改
+        BUILD_ERR_DIR = "builderrlog"                                                   // 编译错误日志目录
     }
     
     stages {
@@ -104,8 +109,6 @@ pipeline {
                 echo "当前处理节点: ${env.NODE_NAME}"
                 script {
                     try {
-                        def buildDependencies = "gcc gcc-c++ make cmake3 jsoncpp-devel openssl-devel git"
-                        
                         echo "在基础镜像中执行编译和测试..."
                         
                         def compileResult = sh(
@@ -127,14 +130,11 @@ pipeline {
                                         # 检测包管理器
                                         if command -v yum >/dev/null; then
                                             echo "安装RHEL/CentOS依赖..."
-                                            yum install -y epel-release || \\
-                                                yum install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm
-                                            yum install -y \$1
-                                            [[ -f /usr/bin/cmake3 ]] && ln -sf /usr/bin/cmake3 /usr/bin/cmake
+                                            yum install -y ${env.BUILD_DEPENDENCIES} || exit 1
                                         elif command -v apt-get >/dev/null; then
                                             echo "安装Debian/Ubuntu依赖..."
                                             apt-get update -qq
-                                            apt-get install -y \$2
+                                            apt-get install -y ${env.DEBIAN_DEPENDENCIES} || exit 1
                                         else
                                             echo "无法识别的Linux发行版"
                                             exit 1
@@ -142,7 +142,7 @@ pipeline {
                                     }
                                     
                                     # 安装依赖（参数：RHEL依赖包 Debian依赖包）
-                                    install_deps "${buildDependencies}" "build-essential cmake libjsoncpp-dev libssl-dev"
+                                    # install_deps "${buildDependencies}" "build-essential cmake libjsoncpp-dev libssl-dev"
                                     
                                     # 2. 验证环境
                                     echo "===== 环境验证 ====="
@@ -175,20 +175,21 @@ pipeline {
 
                                     # 4. 编译并指定输出目录
                                     echo "===== 开始编译 ====="
-                                    mkdir -p buildout
-                                    mkdir -p builderrlog
+                                    mkdir -p ${env.BUILD_OUT_DIR}
+                                    mkdir -p ${env.BUILD_ERR_DIR}
+
                                     make clean
                                     
                                     # 编译到buildout目录
-                                    make -j\$(nproc) 2> builderrlog/build_errors.log || {
-                                        cat builderrlog/build_errors.log
+                                    make -j\$(nproc) 2> ${env.BUILD_ERR_DIR}/build_errors.log || {
+                                        cat ${env.BUILD_ERR_DIR}/build_errors.log
                                         exit 1
                                     }
                                     
                                     # 运行测试
                                     if grep -q "^test:" Makefile; then
-                                        make test 2> builderrlog/test_errors.log || {
-                                            cat builderrlog/test_errors.log
+                                        make test 2> ${env.BUILD_ERR_DIR}/test_errors.log || {
+                                            cat ${env.BUILD_ERR_DIR}/test_errors.log
                                             exit 1
                                         }
                                     fi
@@ -200,13 +201,13 @@ pipeline {
                         // 检查编译结果（原有逻辑保持不变）
                         if (compileResult != 0) {
                             error "容器内编译测试失败，返回码: ${compileResult}"
-                        } else {
-                            echo "容器内编译测试完成"
                         }
+
+                        echo "容器内编译测试完成"
                     } catch (Exception e) {
                         // 捕获异常时调整日志路径到buildout目录
                         def errorLog = sh(
-                            script: "cat ${WORKSPACE}/builderrlog/build_errors.log ${WORKSPACE}/builderrlog/test_errors.log 2>/dev/null || true",
+                            script: "cat ${WORKSPACE}/${env.BUILD_ERR_DIR}/build_errors.log ${WORKSPACE}/${env.BUILD_ERR_DIR}/test_errors.log 2>/dev/null || true",
                             returnStdout: true
                         )
                         error "编译测试阶段失败:\n${e.getMessage()}\n错误日志:\n${errorLog}"
@@ -225,14 +226,11 @@ pipeline {
                         echo "构建应用镜像: ${APP_IMAGE_URL}:${tag}"
                         
                         dir("${WORKSPACE}/dockfile") {
-                            // 将编译产物拷贝到dockerfile目录下，使Dockerfile和应用在同一目录dockfile下
+                            // 将编译产物拷贝到dockerfile目录下，使Dockerfile和应用在同一目录dockfile下，根据构建应用镜像要用到的文件做相应修改
                             sh """
-                                cp ${WORKSPACE}/buildout/frssvr ./
+                                cp ${WORKSPACE}/${env.BUILD_OUT_DIR}/frssvr ./
                                 cp -r ${WORKSPACE}/lib64 ./
                             """
-                            
-                            // 验证文件存在
-                            sh "ls -l frssvr lib64"
                             
                             // 构建镜像
                             sh "docker build -t ${APP_IMAGE_URL}:${tag} ."
@@ -245,165 +243,7 @@ pipeline {
                 }
             }
         }
-/*
-        stage('编译和测试') {
-            steps {
-                script {
-                    try {
-                        def buildDependencies = "gcc gcc-c++ make cmake3 jsoncpp-devel openssl-devel git"
-                        
-                        echo "在基础镜像中执行编译和测试..."
-                        
-                        // 使用 returnStatus 获取命令退出状态
-                        def compileResult = sh(
-                            script: """
-                            #!/bin/bash
-                            set -xe
-                            
-                            # 使用docker run直接运行容器执行编译
-                            # 如果编译输出不在src目录下，则还需要增加相关目录情况挂载，yangxmflag
-                            docker run --rm \
-                                -v ${WORKSPACE}/src:/workspace/src \
-                                -v ${WORKSPACE}/.cache:/root/.cache \
-                                -w /workspace/src \
-                                ${BASE_IMAGE} /bin/bash -c '
 
-                                    # 打印初始工作目录
-                                    echo "当前工作目录: \$(pwd)"
-
-                                    # 1. 可靠的系统检测和依赖安装
-                                    install_deps() {
-                                        # 检测包管理器
-                                        if command -v yum >/dev/null; then
-                                            echo "安装RHEL/CentOS依赖..."
-                                            yum install -y epel-release || \\
-                                                yum install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm
-                                            yum install -y \$1
-                                            [[ -f /usr/bin/cmake3 ]] && ln -sf /usr/bin/cmake3 /usr/bin/cmake
-                                        elif command -v apt-get >/dev/null; then
-                                            echo "安装Debian/Ubuntu依赖..."
-                                            apt-get update -qq
-                                            apt-get install -y \$2
-                                        else
-                                            echo "无法识别的Linux发行版"
-                                            exit 1
-                                        fi
-                                    }
-                                    
-                                    # 安装依赖（参数：RHEL依赖包 Debian依赖包）
-                                    install_deps "${buildDependencies}" "build-essential cmake libjsoncpp-dev libssl-dev"
-                                    
-                                    # 2. 验证环境
-                                    echo "===== 环境验证 ====="
-                                    g++ --version || { echo "[ERROR] g++未安装"; exit 1; }
-                                    cmake --version || cmake3 --version || { echo "[ERROR] cmake未安装"; exit 1; }
-
-                                    echo "===== 创建软连接 ====="
-                                    cd lib64
-                                    ln -sf libaws-c-auth.so.1.0.0 libaws-c-auth.so
-                                    ln -sf libaws-c-cal.so.1.0.0 libaws-c-cal.so
-                                    ln -sf libaws-c-common.so.1.0.0 libaws-c-common.so.1
-                                    ln -sf libaws-c-common.so.1 libaws-c-common.so
-                                    ln -sf libaws-c-compression.so.1.0.0 libaws-c-compression.so
-                                    ln -sf libaws-c-event-stream.so.1.0.0 libaws-c-event-stream.so
-                                    ln -sf libaws-checksums.so.1.0.0 libaws-checksums.so
-                                    ln -sf libaws-c-http.so.1.0.0 libaws-c-http.so
-                                    ln -sf libaws-c-io.so.1.0.0 libaws-c-io.so
-                                    ln -sf libaws-c-mqtt.so.1.0.0 libaws-c-mqtt.so
-                                    ln -sf libaws-c-s3.so.1.0.0 libaws-c-s3.so.0unstable
-                                    ln -sf libaws-c-s3.so.0unstable libaws-c-s3.so
-                                    ln -sf libaws-c-sdkutils.so.1.0.0 libaws-c-sdkutils.so
-                                    ln -sf libs2n.so.1.0.0 libs2n.so.1
-                                    ln -sf libs2n.so.1 libs2n.so
-                                    cd ..
-
-                                    # 打印编译前工作目录
-                                    echo "编译前工作目录: \$(pwd)"
-
-                                    # 3. 编译和测试（将错误输出到文件）
-                                    echo "===== 开始编译 ====="
-                                    make clean
-                                    
-                                    # 编译并将错误输出到文件
-                                    make -j\$(nproc) 2> build_errors.log || {
-                                        echo "[BUILD FAILED] 编译错误："
-                                        cat build_errors.log
-                                        exit 1
-                                    }
-                                    
-                                    if grep -q "^test:" Makefile; then
-                                        echo "===== 运行测试 ====="
-                                        make test 2> test_errors.log || {
-                                            echo "[TEST FAILED] 测试失败："
-                                            cat test_errors.log
-                                            exit 1
-                                        }
-                                    fi
-                                '
-                            """,
-                            returnStatus: true  // 获取命令返回状态码
-                        )
-                        
-                        // 检查编译结果
-                        if (compileResult != 0) {
-                            // 获取容器日志（如果需要）
-                            def containerLog = sh(
-                                script: "docker ps -lq | xargs docker logs 2>&1 | tail -n 50 || true",
-                                returnStdout: true
-                            )
-                            error "编译测试失败，返回码: ${compileResult}\n容器日志片段:\n${containerLog}"
-                        }
-                        
-                        echo "容器内编译测试完成"
-                    } catch (Exception e) {
-                        // 捕获异常并打印详细错误
-                        def errorLog = sh(
-                            script: "cat ${WORKSPACE}/src/build_errors.log ${WORKSPACE}/src/test_errors.log 2>/dev/null || true",
-                            returnStdout: true
-                        )
-                        error "编译测试阶段失败:\n${e.getMessage()}\n错误日志:\n${errorLog}"
-                    }
-                }
-            }
-        }
-
-        stage('构建应用镜像') {
-            steps {
-                script {
-                    try {
-                        // 获取当前时间戳或Git提交ID作为标签
-                        // def tag = sh(script: "git rev-parse --short HEAD", returnStdout: true).trim()
-
-                        // 直接使用预定义的 BUILD_NUMBER 环境变量
-                        def tag = env.BUILD_NUMBER
-                        env.IMAGE_TAG = tag
-                        
-                        echo "构建应用镜像: ${APP_IMAGE_URL}:${tag}"
-                        
-                        //dir("${WORKSPACE}/${PROJECT_NAME}/dockfile") {
-                        dir("${WORKSPACE}/dockfile") {
-
-                            // 将编译产物考到dockerfile，要根据实际情况，包括make编译输出目录以及Dockerfile里面的具体定义 yangxmflag
-                            sh """
-                                cp ${WORKSPACE}/src/frssvr ./
-                                cp -r ${WORKSPACE}/src/lib64 ./
-                            """
-
-                            // 验证文件是否存在 yangxmflag
-                            // sh "ls -l frssvr lib64"
-
-                            // 构建Docker镜像
-                            sh "docker build -t ${APP_IMAGE_URL}:${tag} ."
-                        }
-                        
-                        echo "应用镜像构建成功"
-                    } catch (Exception e) {
-                        error "构建应用镜像失败: ${e.getMessage()}"
-                    }
-                }
-            }
-        }
-*/        
         stage('推送镜像') {
             steps {
                 echo "当前处理节点: ${env.NODE_NAME}"
@@ -464,7 +304,7 @@ pipeline {
     post {
         always {
             echo "清理工作空间..."
-            sh "rm -rf ${WORKSPACE}/builderrlog"
+            sh "rm -rf ${WORKSPACE}/${env.BUILD_ERR_DIR}"
             cleanWs()
         }
         success {
